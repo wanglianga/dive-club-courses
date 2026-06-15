@@ -1,7 +1,22 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { AlertTriangle, CheckCircle, XCircle, FileText, ChevronRight } from 'lucide-vue-next';
-import { healthDeclarations } from '@/data';
+import { healthDeclarations, type HealthDeclaration } from '@/data';
+
+export interface HealthDeclarationValidation {
+  isValid: boolean;
+  hasWarning: boolean;
+  allAnswered: boolean;
+  hasSignature: boolean;
+  hasDate: boolean;
+  hasAgreement: boolean;
+  warningItems: HealthDeclaration[];
+  missingFields: string[];
+}
+
+const emit = defineEmits<{
+  (e: 'validate', payload: HealthDeclarationValidation): void;
+}>();
 
 const answers = ref<Record<string, 'yes' | 'no'>>({});
 const signatureName = ref('');
@@ -19,11 +34,42 @@ const hasWarningYes = computed(() => {
   return healthDeclarations.some(h => h.warning && answers.value[h.id] === 'yes');
 });
 
+const warningItems = computed(() => {
+  return healthDeclarations.filter(h => h.warning && answers.value[h.id] === 'yes');
+});
+
+const missingFields = computed<string[]>(() => {
+  const missing: string[] = [];
+  if (!allAnswered.value) missing.push('健康问题');
+  if (!signatureName.value.trim()) missing.push('声明人签名');
+  if (!signatureDate.value) missing.push('声明日期');
+  if (!declarationAgreed.value) missing.push('责任声明确认');
+  return missing;
+});
+
+const validation = computed<HealthDeclarationValidation>(() => ({
+  isValid: allAnswered.value && !!signatureName.value.trim() && !!signatureDate.value && declarationAgreed.value,
+  hasWarning: hasWarningYes.value,
+  allAnswered: allAnswered.value,
+  hasSignature: !!signatureName.value.trim(),
+  hasDate: !!signatureDate.value,
+  hasAgreement: declarationAgreed.value,
+  warningItems: warningItems.value,
+  missingFields: missingFields.value,
+}));
+
 const setAnswer = (id: string, answer: 'yes' | 'no') => {
   answers.value[id] = answer;
 };
 
 const today = new Date().toISOString().split('T')[0];
+
+watch(validation, (v) => emit('validate', v), { immediate: true, deep: true });
+
+defineExpose({
+  validation,
+  getValidation: () => validation.value,
+});
 </script>
 
 <template>
@@ -183,49 +229,58 @@ const today = new Date().toISOString().split('T')[0];
 
     <div class="flex items-center gap-3 p-4 rounded-xl"
       :class="[
-        allAnswered && declarationAgreed && signatureName && signatureDate
+        validation.isValid && !validation.hasWarning
           ? 'bg-kelp-500/15 border border-kelp-500/40'
+          : validation.isValid && validation.hasWarning
+          ? 'bg-sand-500/15 border border-sand-500/40'
           : 'bg-ocean-800/40 border border-ocean-600/30',
       ]"
     >
       <div
         class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
         :class="[
-          allAnswered && declarationAgreed && signatureName && signatureDate
+          validation.isValid && !validation.hasWarning
             ? 'bg-kelp-500 text-white'
+            : validation.isValid && validation.hasWarning
+            ? 'bg-sand-500 text-white'
             : 'bg-ocean-700/60 text-ocean-400',
         ]"
       >
-        <CheckCircle :size="22" />
+        <AlertTriangle v-if="validation.hasWarning" :size="22" />
+        <CheckCircle v-else :size="22" />
       </div>
       <div class="flex-1">
         <div
           class="font-semibold"
           :class="[
-            allAnswered && declarationAgreed && signatureName && signatureDate
+            validation.isValid && !validation.hasWarning
               ? 'text-kelp-300'
+              : validation.isValid && validation.hasWarning
+              ? 'text-sand-300'
               : 'text-ocean-300',
           ]"
         >
           健康声明状态
         </div>
         <div class="text-xs text-ocean-400 mt-0.5 flex items-center gap-1">
-          <template v-if="hasWarningYes">
-            <AlertTriangle :size="12" class="text-coral-400" />
-            存在警示项，需顾问进一步评估
+          <template v-if="validation.hasWarning && validation.isValid">
+            <AlertTriangle :size="12" class="text-sand-400" />
+            已完成，但存在警示项，需顾问进一步评估
           </template>
-          <template v-else-if="allAnswered && declarationAgreed && signatureName && signatureDate">
+          <template v-else-if="validation.isValid">
             已完成所有必填项，可以提交
           </template>
           <template v-else>
-            请完成所有必填项
+            <span class="text-coral-400">缺少：{{ validation.missingFields.join('、') }}</span>
           </template>
         </div>
       </div>
       <ChevronRight :size="20"
         :class="[
-          allAnswered && declarationAgreed && signatureName && signatureDate
-            ? 'text-kelp-400'
+          validation.isValid
+            ? validation.hasWarning
+              ? 'text-sand-400'
+              : 'text-kelp-400'
             : 'text-ocean-500',
         ]"
       />

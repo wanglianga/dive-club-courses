@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import {
   ArrowLeft, ChevronRight, CheckCircle2, ShoppingBag,
-  CalendarDays, UserCheck, ClipboardList, Package, MapPin, Waves
+  CalendarDays, UserCheck, ClipboardList, Package, MapPin, Waves, AlertTriangle, ShieldAlert
 } from 'lucide-vue-next';
 import {
   courses, instructors, trainingStages, equipmentList,
@@ -13,7 +13,7 @@ import CourseCard from './CourseCard.vue';
 import InstructorCard from './InstructorCard.vue';
 import TrainingTimeline from './TrainingTimeline.vue';
 import EquipmentSizeSelector from './EquipmentSizeSelector.vue';
-import HealthDeclarationForm from './HealthDeclarationForm.vue';
+import HealthDeclarationForm, { type HealthDeclarationValidation } from './HealthDeclarationForm.vue';
 import SeaConditionAlert from './SeaConditionAlert.vue';
 import CertificateProgressCard from './CertificateProgressCard.vue';
 import CourseDatePicker from './CourseDatePicker.vue';
@@ -26,6 +26,8 @@ const selectedCourse = ref<Course | null>(null);
 const selectedSessionId = ref<string | null>(null);
 const selectedInstructor = ref<Instructur | null>(null);
 const showConfirmSuccess = ref(false);
+const healthValidation = ref<HealthDeclarationValidation | null>(null);
+const showHealthWarningModal = ref(false);
 
 const stepConfig: { id: StudentStep; label: string; icon: any }[] = [
   { id: 'courses', label: '选择课程', icon: Waves },
@@ -46,11 +48,15 @@ const canGoNext = computed(() => {
     case 'dates': return !!selectedSessionId.value;
     case 'instructor': return !!selectedInstructor.value;
     case 'equipment': return true;
-    case 'health': return true;
-    case 'confirm': return true;
+    case 'health': return !!healthValidation.value?.isValid;
+    case 'confirm': return !!healthValidation.value?.isValid && !healthValidation.value.hasWarning;
     default: return false;
   }
 });
+
+const handleHealthValidate = (payload: HealthDeclarationValidation) => {
+  healthValidation.value = payload;
+};
 
 const selectCourse = (course: Course) => {
   selectedCourse.value = course;
@@ -59,12 +65,30 @@ const selectCourse = (course: Course) => {
 };
 
 const nextStep = () => {
-  if (!canGoNext.value) return;
+  if (!canGoNext.value && currentStep.value !== 'confirm') return;
   const idx = currentStepIndex.value;
+
+  if (currentStep.value === 'health' && healthValidation.value?.isValid && healthValidation.value?.hasWarning) {
+    showHealthWarningModal.value = true;
+    return;
+  }
+
   if (idx < stepConfig.length - 1) {
     currentStep.value = stepConfig[idx + 1].id;
   } else {
+    if (healthValidation.value?.hasWarning) {
+      showHealthWarningModal.value = true;
+      return;
+    }
     showConfirmSuccess.value = true;
+  }
+};
+
+const proceedDespiteWarning = () => {
+  showHealthWarningModal.value = false;
+  const idx = currentStepIndex.value;
+  if (idx < stepConfig.length - 1) {
+    currentStep.value = stepConfig[idx + 1].id;
   }
 };
 
@@ -81,6 +105,8 @@ const resetForm = () => {
   selectedCourse.value = null;
   selectedSessionId.value = null;
   selectedInstructor.value = null;
+  healthValidation.value = null;
+  showHealthWarningModal.value = false;
 };
 </script>
 
@@ -252,11 +278,44 @@ const resetForm = () => {
       </div>
 
       <div v-show="currentStep === 'health'">
-        <HealthDeclarationForm />
+        <HealthDeclarationForm @validate="handleHealthValidate" />
       </div>
 
       <div v-show="currentStep === 'confirm'">
         <div class="space-y-6">
+          <div
+            v-if="healthValidation?.hasWarning"
+            class="bg-sand-500/10 border-2 border-sand-500/40 rounded-2xl p-5"
+          >
+            <div class="flex items-start gap-3">
+              <div class="w-11 h-11 rounded-xl bg-sand-500/30 flex items-center justify-center flex-shrink-0">
+                <ShieldAlert :size="24" class="text-sand-400" />
+              </div>
+              <div class="flex-1">
+                <h4 class="font-bold text-white text-base mb-1.5">存在健康警示项，需顾问评估</h4>
+                <p class="text-sm text-ocean-200/80 leading-relaxed mb-3">
+                  您在健康声明中勾选了以下重要警示项，暂无法直接在线确认报名。
+                  请联系潜水顾问进行进一步评估，可能需要提供医生签字的体检证明后方可参加课程。
+                </p>
+                <ul class="space-y-1.5">
+                  <li
+                    v-for="item in healthValidation.warningItems"
+                    :key="item.id"
+                    class="flex items-start gap-2 text-sm text-sand-200"
+                  >
+                    <AlertTriangle :size="14" class="text-sand-400 mt-0.5 flex-shrink-0" />
+                    <span>{{ item.question }}</span>
+                  </li>
+                </ul>
+                <div class="mt-4 p-3 bg-ocean-900/60 rounded-xl border border-ocean-700/50 text-xs text-ocean-300">
+                  <div class="font-semibold text-ocean-200 mb-1">顾问联系方式</div>
+                  <div>电话：400-888-8888 转 健康评估专员</div>
+                  <div>邮箱：medical@bluecoral.com</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="bg-coral-500/10 border border-coral-500/30 rounded-2xl p-5">
             <h3 class="text-white font-bold text-xl mb-2 flex items-center gap-2">
               <ShoppingBag :size="22" class="text-coral-400" />
@@ -361,18 +420,89 @@ const resetForm = () => {
           </button>
           <div class="flex-1"></div>
           <button
-            class="flex-1 sm:flex-none min-w-[180px] px-8 py-3.5 rounded-xl bg-coral-gradient text-white font-bold shadow-xl shadow-coral-500/25 transition-all hover:shadow-coral-500/40 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center justify-center gap-2"
-            :disabled="!canGoNext"
+            class="flex-1 sm:flex-none min-w-[180px] px-8 py-3.5 rounded-xl font-bold shadow-xl transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center justify-center gap-2"
+            :class="currentStepIndex === stepConfig.length - 1 && healthValidation?.hasWarning
+              ? 'bg-sand-gradient text-white shadow-sand-500/25 hover:shadow-sand-500/40'
+              : 'bg-coral-gradient text-white shadow-coral-500/25 hover:shadow-coral-500/40'"
+            :disabled="!canGoNext && !(currentStepIndex === stepConfig.length - 1 && healthValidation?.isValid && healthValidation?.hasWarning)"
             @click="nextStep"
           >
             <template v-if="currentStepIndex === stepConfig.length - 1">
-              <CheckCircle2 :size="18" />
-              确认报名
+              <template v-if="healthValidation?.hasWarning">
+                <ShieldAlert :size="18" />
+                需顾问评估
+              </template>
+              <template v-else>
+                <CheckCircle2 :size="18" />
+                确认报名
+              </template>
             </template>
             <template v-else>
               下一步
               <ChevronRight :size="18" />
             </template>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="showHealthWarningModal"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ocean-950/70 backdrop-blur-sm"
+      @click.self="showHealthWarningModal = false"
+    >
+      <div class="w-full max-w-md bg-ocean-900 rounded-2xl border border-ocean-700/50 shadow-2xl overflow-hidden">
+        <div class="p-6 bg-gradient-to-r from-sand-500/20 to-coral-500/20 border-b border-ocean-700/40">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-sand-500/30 flex items-center justify-center flex-shrink-0">
+              <ShieldAlert :size="26" class="text-sand-400" />
+            </div>
+            <div>
+              <h4 class="font-bold text-white text-lg">健康警示提醒</h4>
+              <p class="text-sm text-ocean-300">存在需要人工评估的健康事项</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <p class="text-sm text-ocean-200 leading-relaxed mb-4">
+            根据您填写的健康声明，存在以下重要警示项：
+          </p>
+          <ul class="space-y-2 mb-5">
+            <li
+              v-for="item in healthValidation?.warningItems"
+              :key="item.id"
+              class="flex items-start gap-2 text-sm text-sand-200 bg-sand-500/10 p-3 rounded-lg border border-sand-500/20"
+            >
+              <AlertTriangle :size="15" class="text-sand-400 mt-0.5 flex-shrink-0" />
+              <span>{{ item.question }}</span>
+            </li>
+          </ul>
+          <div class="p-4 bg-ocean-800/60 rounded-xl border border-ocean-700/40">
+            <div class="text-xs text-ocean-300 mb-2">
+              <span class="font-semibold text-ocean-200">请注意：</span>
+            </div>
+            <ul class="space-y-1.5 text-xs text-ocean-300 leading-relaxed">
+              <li>• 以上情况可能影响您的潜水安全，需由专业顾问评估</li>
+              <li>• 可能需要提供医生签字的体检证明方可参加课程</li>
+              <li>• 您可以继续填写并提交信息，顾问会主动联系您</li>
+              <li>• 如隐瞒健康信息导致意外，需自行承担全部责任</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="p-4 sm:p-6 bg-ocean-950/50 border-t border-ocean-700/40 flex flex-col-reverse sm:flex-row gap-3">
+          <button
+            class="flex-1 px-5 py-3 rounded-xl bg-ocean-700/60 text-white font-medium hover:bg-ocean-600/70 transition-colors border border-ocean-600/30"
+            @click="showHealthWarningModal = false"
+          >
+            返回修改健康声明
+          </button>
+          <button
+            class="flex-1 px-5 py-3 rounded-xl bg-sand-gradient text-white font-bold shadow-lg shadow-sand-500/20"
+            @click="proceedDespiteWarning"
+          >
+            继续提交，等待顾问评估
           </button>
         </div>
       </div>

@@ -66,6 +66,8 @@ export default {
           "linear-gradient(180deg, #1abcd4 0%, #0099bb 50%, #007a99 100%)",
         "coral-gradient":
           "linear-gradient(135deg, #ff7e52 0%, #ff6b35 50%, #e55020 100%)",
+        "sand-gradient":
+          "linear-gradient(135deg, #d4a263 0%, #c98d3f 50%, #b07530 100%)",
       },
       animation: {
         "wave-slow": "wave 8s ease-in-out infinite",

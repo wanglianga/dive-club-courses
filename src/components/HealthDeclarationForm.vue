@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { AlertTriangle, CheckCircle, XCircle, FileText, ChevronRight } from 'lucide-vue-next';
-import { healthDeclarations, type HealthDeclaration } from '@/data';
+import { healthDeclarations, type HealthDeclaration, type HealthDeclarationAnswers } from '@/data';
 
 export interface HealthDeclarationValidation {
   isValid: boolean;
@@ -16,6 +16,7 @@ export interface HealthDeclarationValidation {
 
 const emit = defineEmits<{
   (e: 'validate', payload: HealthDeclarationValidation): void;
+  (e: 'submit', payload: HealthDeclarationAnswers): void;
 }>();
 
 const answers = ref<Record<string, 'yes' | 'no'>>({});
@@ -58,6 +59,16 @@ const validation = computed<HealthDeclarationValidation>(() => ({
   missingFields: missingFields.value,
 }));
 
+const fullAnswers = computed<HealthDeclarationAnswers>(() => ({
+  answers: { ...answers.value },
+  signatureName: signatureName.value,
+  signatureDate: signatureDate.value,
+  emergencyContact: emergencyContact.value,
+  emergencyPhone: emergencyPhone.value,
+  additionalNotes: additionalNotes.value,
+  declarationAgreed: declarationAgreed.value,
+}));
+
 const setAnswer = (id: string, answer: 'yes' | 'no') => {
   answers.value[id] = answer;
 };
@@ -68,7 +79,11 @@ watch(validation, (v) => emit('validate', v), { immediate: true, deep: true });
 
 defineExpose({
   validation,
+  warningItems,
+  fullAnswers,
   getValidation: () => validation.value,
+  getAnswers: () => fullAnswers.value,
+  getWarningItems: () => warningItems.value,
 });
 </script>
 
@@ -153,7 +168,8 @@ defineExpose({
                 <div>
                   <div class="font-semibold text-coral-300 mb-1">需要进一步确认</div>
                   <p>
-                    请在顾问协助下评估潜水可行性，可能需要提供医生签字的体检证明后方可报名。
+                    您选择的此项可能影响潜水安全，系统将自动进入健康风险评估流程，
+                    需由潜水顾问评估并可能需要提供医生签字的体检证明后方可报名。
                   </p>
                 </div>
               </div>
@@ -265,10 +281,10 @@ defineExpose({
         <div class="text-xs text-ocean-400 mt-0.5 flex items-center gap-1">
           <template v-if="validation.hasWarning && validation.isValid">
             <AlertTriangle :size="12" class="text-sand-400" />
-            已完成，但存在警示项，需顾问进一步评估
+            已完成，但存在{{ warningItems.length }}项警示项，将进入风险评估流程
           </template>
           <template v-else-if="validation.isValid">
-            已完成所有必填项，可以提交
+            已完成所有必填项，可以继续报名
           </template>
           <template v-else>
             <span class="text-coral-400">缺少：{{ validation.missingFields.join('、') }}</span>

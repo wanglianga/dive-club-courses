@@ -73,6 +73,54 @@ export interface HealthDeclaration {
   id: string;
   question: string;
   warning: boolean;
+  category?: 'asthma' | 'ear' | 'surgery' | 'medication' | 'pregnancy' | 'heart' | 'neurology' | 'other';
+}
+
+export type HealthRiskStatus = 'pending' | 'needs_doctor_cert' | 'advisor_review' | 'approved' | 'rejected' | 'deferred';
+
+export type HealthRiskStep = 'doctor_certificate' | 'advisor_review' | 'course_options' | 'defer_reason';
+
+export interface HealthRiskRecord {
+  id: string;
+  studentId: string;
+  studentName: string;
+  declarationAnswers: Record<string, 'yes' | 'no'>;
+  warningItems: string[];
+  status: HealthRiskStatus;
+  currentStep: HealthRiskStep | null;
+  doctorCertificate: {
+    uploaded: boolean;
+    fileName?: string;
+    verified: boolean;
+    verifiedBy?: string;
+    verifiedAt?: string;
+  };
+  advisorReview: {
+    reviewed: boolean;
+    reviewerName?: string;
+    reviewedAt?: string;
+    notes?: string;
+    approvedCourses: CourseLevel[];
+  };
+  deferral: {
+    deferred: boolean;
+    reason?: string;
+    deferredUntil?: string;
+    deferredBy?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt?: string;
+}
+
+export interface HealthDeclarationAnswers {
+  answers: Record<string, 'yes' | 'no'>;
+  signatureName: string;
+  signatureDate: string;
+  emergencyContact: string;
+  emergencyPhone: string;
+  additionalNotes: string;
+  declarationAgreed: boolean;
 }
 
 export interface CertificateProgress {
@@ -501,14 +549,14 @@ export const wetsuitSizeChart: SizeOption[] = [
 ];
 
 export const healthDeclarations: HealthDeclaration[] = [
-  { id: "h-1", question: "您是否有心脏病、高血压或其他心血管疾病？", warning: true },
-  { id: "h-2", question: "您是否有哮喘、慢性支气管炎或其他呼吸系统疾病？", warning: true },
-  { id: "h-3", question: "您是否有癫痫、晕厥病史或其他神经系统疾病？", warning: true },
-  { id: "h-4", question: "您是否有严重的耳部疾病或近期进行过耳部手术？", warning: true },
-  { id: "h-5", question: "您是否在过去12个月内进行过大型手术？", warning: false },
-  { id: "h-6", question: "您是否有恐水症或怕水心理？", warning: false },
-  { id: "h-7", question: "您是否怀孕或可能已怀孕？", warning: true },
-  { id: "h-8", question: "您是否有药物过敏史？请在备注中说明。", warning: false },
+  { id: "h-1", question: "您是否有心脏病、高血压或其他心血管疾病？", warning: true, category: "heart" },
+  { id: "h-2", question: "您是否有哮喘、慢性支气管炎或其他呼吸系统疾病？", warning: true, category: "asthma" },
+  { id: "h-3", question: "您是否有癫痫、晕厥病史或其他神经系统疾病？", warning: true, category: "neurology" },
+  { id: "h-4", question: "您是否有严重的耳部疾病、耳压问题或近期进行过耳部手术？", warning: true, category: "ear" },
+  { id: "h-5", question: "您是否在过去12个月内进行过大型手术？", warning: true, category: "surgery" },
+  { id: "h-6", question: "您是否有恐水症或怕水心理？", warning: false, category: "other" },
+  { id: "h-7", question: "您是否怀孕或可能已怀孕？", warning: true, category: "pregnancy" },
+  { id: "h-8", question: "您是否正在长期服药或有药物过敏史？请在备注中说明。", warning: true, category: "medication" },
 ];
 
 export const certificateProgress: CertificateProgress[] = [
